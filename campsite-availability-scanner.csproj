@@ -4,10 +4,11 @@
     <TargetFramework>net7.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>campsite_availability_scanner</RootNamespace>
+    <RootNamespace>CampsiteAvailabilityScanner</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="DotNetEnv" Version="3.1.1" />
     <PackageReference Include="Twilio" Version="7.12.2" />
   </ItemGroup>
 

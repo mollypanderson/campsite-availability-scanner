@@ -1,14 +1,14 @@
 using System;
+using System.Collections;
 using System.Net.Http;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
+using CampsiteAvailabilityScanner.Models;
 
 public class RecreationApiClient
 {
     private readonly HttpClient _httpClient;
-
-    Dictionary<string, string> laVerkinCreekNames;
 
     public RecreationApiClient(HttpClient? httpClient = null)
     {
@@ -17,7 +17,7 @@ public class RecreationApiClient
 
     public async Task<JsonObject?> GetPermitSiteInformation(string permitId)
     {
-        string permitSiteInformationUrl = $" https://www.recreation.gov/api/permitcontent/{permitId}";
+        string permitSiteInformationUrl = $"https://www.recreation.gov/api/permitcontent/{permitId}";
 
         using var response = await _httpClient.GetAsync(permitSiteInformationUrl);
         response.EnsureSuccessStatusCode();
@@ -36,7 +36,7 @@ public class RecreationApiClient
         resultBuilder.Add("permitId", permitId);
         resultBuilder.Add("permitSiteName", permitSiteName);
         // One-liner: grab all district values into "zones"
-        var zones = result.RootElement
+        var zoneOptions = result.RootElement
                        .GetProperty("payload")
                        .GetProperty("divisions")
                        .EnumerateObject()
@@ -45,13 +45,84 @@ public class RecreationApiClient
                            && children.GetArrayLength() > 0) // parent has non-empty children
                        .Select(d => d.Value.GetProperty("district").GetString()!)
                        .Distinct()
-                       .ToArray();
+                        .Select((district, index) => new KeyValuePair<string, string>($"{index + 1}", district))
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
-        resultBuilder.Add("zones", new JsonArray(zones.Select(z => JsonValue.Create(z)).ToArray()));
+        resultBuilder.Add("zoneOptions", new JsonObject(zoneOptions.Select(kvp => new KeyValuePair<string, JsonNode?>(kvp.Key, JsonValue.Create(kvp.Value))).ToArray()));
 
-        Console.WriteLine(string.Join(", ", zones));
+        Console.WriteLine(string.Join(", ", zoneOptions));
 
         return resultBuilder;
 
     }
+
+    public async Task<string[]> GetCampsiteIdsForZone(ConversationState state, string zone)
+    {
+        ArrayList arrayList = new ArrayList();
+        string permitSiteInformationUrl = $"https://www.recreation.gov/api/permitcontent/{state.CurrentParkInformation.PermitId}";
+
+        using var response = await _httpClient.GetAsync(permitSiteInformationUrl);
+        response.EnsureSuccessStatusCode();
+
+        var stream = await response.Content.ReadAsStreamAsync();
+        JsonDocument result = await JsonDocument.ParseAsync(stream);
+
+        var divisions = result.RootElement
+            .GetProperty("payload")
+            .GetProperty("divisions");
+
+        foreach (var division in divisions.EnumerateObject())
+        {
+            string divisionId = division.Value.GetProperty("id").GetString()!;
+            string districtName = division.Value.GetProperty("district").GetString()!;
+
+            if (districtName == zone)
+            {
+                // add division.id to array list to return
+                var json = new JsonObject
+                {
+                    ["campsiteId"] = divisionId,
+                    ["zone"] = districtName,
+                    ["permitSite"] = state.CurrentParkInformation.PermitSiteName,
+                };
+                arrayList.Add(json.ToJsonString());
+            }
+        }
+
+        return (string[])arrayList.ToArray(typeof(string));
+
+    }
+
+    public async Task<JsonObject?> GetPermitZoneAvailabilityAsync(Campsite campsite)
+    {
+        var availabilityResults = new JsonObject();
+
+        string url = $"https://www.recreation.gov/api/permititinerary/4675338/division/{campsite.CampsiteId}/availability/month?month={9}&year={2025}";
+
+        using var response = await _httpClient.GetAsync(url);
+        response.EnsureSuccessStatusCode();
+
+        var stream = await response.Content.ReadAsStreamAsync();
+        JsonDocument result = await JsonDocument.ParseAsync(stream);
+        JsonElement constantQuotaUsageDaily = result.RootElement.GetProperty("payload").GetProperty("quota_type_maps").GetProperty("ConstantQuotaUsageDaily");
+        foreach (var item in constantQuotaUsageDaily.EnumerateObject())
+        {
+            if (item.Value.GetProperty("show_walkup").GetBoolean() == false
+                && item.Value.GetProperty("is_hidden").GetBoolean() == false)
+            {
+                Boolean availability = false;
+                if (item.Value.GetProperty("remaining").GetInt32() > 0)
+                {
+                    availability = true;
+                    availabilityResults[item.Name] = new JsonArray { "Hop Valley", "La Verkin Creek" };
+                    //((JsonArray)availabilityResults[permitZoneIdAndNames[campsite.CampsiteId]]!).Add(new JsonObject { ["date"] = item.Name, ["available"] = availability });
+                }
+            }
+        }
+
+        // Console.WriteLine("result: " + resultBuilder.ToJsonString());
+        return availabilityResults;
+
+    }
+
 }

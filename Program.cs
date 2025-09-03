@@ -1,48 +1,39 @@
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
-using Twilio;
-using Twilio.Rest.Api.V2010.Account;
-using Twilio.Types;
+using Microsoft.Extensions.DependencyInjection;
+using CampsiteAvailabilityScanner.Services;
 
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
-
-// 🔹 Twilio credentials (replace with yours from https://console.twilio.com/)
-var accountSid = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID");
-var authToken  = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN");
-
-// ✅ 1. Endpoint to send a WhatsApp message
-app.MapGet("/send", () =>
+class Program
 {
-    TwilioClient.Init(accountSid, authToken);
+    static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+        builder.Services.AddHostedService<ScheduledTaskService>();
+        builder.WebHost.UseUrls("http://localhost:5167"); // <-- force HTTP
+        var app = builder.Build();
 
-    var message = MessageResource.Create(
-        from: new PhoneNumber("whatsapp:+14155238886"), // Twilio sandbox number
-        to: new PhoneNumber("whatsapp:+14257366255"),    // Your verified WhatsApp #
-        body: "Hello from .NET 7 + Twilio WhatsApp!"
-    );
+        // Configure Twilio credentials
+        DotNetEnv.Env.Load();
+        string accountSid = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID")!;
+        string authToken = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN")!;
+        string sandboxNumber = "whatsapp:+14155238886";
 
-    return Results.Ok(new { message.Sid, message.Status });
-});
+        // Instantiate the bot service
+        var botService = new WhatsAppBotService(accountSid, authToken, sandboxNumber);
 
-// ✅ 2. Webhook to receive incoming WhatsApp messages
-app.MapPost("/whatsapp", async (HttpRequest request) =>
-{
-    var form = await request.ReadFormAsync();
-    string from = form["From"];
-    string body = form["Body"];
+        // Twilio webhook endpoint
+        app.MapPost("/whatsapp", async (HttpRequest request) =>
+        {
+            var form = await request.ReadFormAsync();
+            string from = form["From"];
+            string body = form["Body"];
 
-    Console.WriteLine($"📩 Received WhatsApp message from {from}: {body}");
+            botService.HandleIncomingMessage(from, body);
 
-    // 🔹 Auto-reply (optional)
-    TwilioClient.Init(accountSid, authToken);
-    MessageResource.Create(
-        from: new PhoneNumber("whatsapp:+14155238886"),
-        to: new PhoneNumber(from),
-        body: $"Thanks! You said: {body}"
-    );
+            return Results.Ok();
+        });
 
-    return Results.Ok();
-});
+        app.Run();
 
-app.Run();
+    }
+}
