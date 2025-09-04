@@ -82,7 +82,9 @@ public class RecreationApiClient
                     ["campsiteId"] = divisionId,
                     ["zone"] = districtName,
                     ["permitSite"] = state.CurrentParkInformation.PermitSiteName,
-                    ["permitId"] = state.CurrentParkInformation.PermitId
+                    ["permitId"] = state.CurrentParkInformation.PermitId,
+                    ["dates"] = new JsonArray(state.SelectedDates.Select(date => (JsonNode)date).ToArray())
+
                 };
                 arrayList.Add(json.ToJsonString());
             }
@@ -95,7 +97,7 @@ public class RecreationApiClient
     public async Task<List<string>> GetPermitZoneAvailabilityAsync(Campsite campsite)
     {
         List<string> availableDates = new List<string>();
-        JsonObject availabilityResults = new JsonObject();
+       // JsonObject availabilityResults = new JsonObject();
         string url = $"https://www.recreation.gov/api/permititinerary/{campsite.PermitId}/division/{campsite.CampsiteId}/availability/month?month=9&year=2025";
 
         using var response = await _httpClient.GetAsync(url);
@@ -111,21 +113,15 @@ public class RecreationApiClient
             {
                 // ✅ Property exists, you can safely use it
                 // e.g., parse availability data
-               // JsonElement constantQuotaUsageDaily = result.RootElement.GetProperty("payload")!.GetProperty("quota_type_maps")!.GetProperty("ConstantQuotaUsageDaily")!;
                 foreach (var item in constantQuotaUsageDaily.EnumerateObject())
                 {
                     if (item.Value.GetProperty("show_walkup").GetBoolean() == false
-                        && item.Value.GetProperty("is_hidden").GetBoolean() == false)
+                        && item.Value.GetProperty("is_hidden").GetBoolean() == false
+                        && item.Value.GetProperty("remaining").GetInt32() > 0)
                     {
-                        Boolean availability = false;
-
-                        if (item.Value.GetProperty("remaining").GetInt32() > 0)
+                        if (campsite.Dates.Contains(item.Name))
                         {
-                            availability = true;
-                            availabilityResults[item.Name] = new JsonArray { "Hop Valley", "La Verkin Creek" };
-                            availableDates.Add(item.Name); //format dates to MM/DD
-
-                            // ((JsonArray)availabilityResults[permitZoneIdAndNames[campsite.CampsiteId]]!).Add(new JsonObject { ["date"] = item.Name, ["available"] = availability });
+                            availableDates.Add(item.Name); 
                         }
                     }
                 }
@@ -143,11 +139,6 @@ public class RecreationApiClient
             Console.WriteLine("Payload or quota_type_maps property not found. Full JSON response:");
             Console.WriteLine(result.RootElement.ToString());
         }
-
-
-        // Console.WriteLine("result: " + resultBuilder.ToJsonString());
         return availableDates;
-
     }
-
 }

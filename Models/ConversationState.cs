@@ -9,5 +9,6 @@ namespace CampsiteAvailabilityScanner.Models
         public string? LastQuestionAsked { get; set; }
         public ParkInformation? CurrentParkInformation { get; set; }
         public string[]? SelectedZones { get; set; }
+        public string[]? SelectedDates { get; set; }
     }
 }

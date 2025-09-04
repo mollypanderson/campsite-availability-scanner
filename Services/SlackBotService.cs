@@ -36,13 +36,18 @@ namespace CampsiteAvailabilityScanner.Services
                     await PrintTrackedSitesAsync(channelId);
                 }
                 else
-                { 
+                {
                     await ProcessPermitUrlAndAskWhichZonesAsync(channelId, body, state);
                 }
             }
             else if (state.LastQuestionAsked == "ask_permit_zones")
             {
                 await ProcessZoneResponseAsync(channelId, body, state);
+                await AskDatesAsync(channelId, state);
+            }
+            else if (state.LastQuestionAsked == "ask_dates")
+            {
+                await ProcessDateResponseAsync(channelId, body, state);
             }
             else
             {
@@ -94,8 +99,6 @@ namespace CampsiteAvailabilityScanner.Services
             {
                 string[] zoneNamesToTrack = state.CurrentParkInformation.ZoneOptions.Values.ToArray();
                 state.SelectedZones = zoneNamesToTrack;
-                await AddPermitZonesToTrackListAsync(state);
-                await SendMessageAsync(channelId, $"Got it! Tracking all zones for {state.CurrentParkInformation.PermitSiteName}.");
             }
             else
             {
@@ -113,11 +116,20 @@ namespace CampsiteAvailabilityScanner.Services
                     .ToArray();
 
                 state.SelectedZones = zoneNamesToTrack;
-                await AddPermitZonesToTrackListAsync(state);
-                await SendMessageAsync(channelId, $"✅ Tracking zones: {string.Join(", ", state.SelectedZones)} for {state.CurrentParkInformation.PermitSiteName}.");
             }
 
             state.LastQuestionAsked = null;
+        }
+
+        private async Task AskDatesAsync(string channelId, ConversationState state)
+        {
+            state.LastQuestionAsked = "ask_dates";
+
+            string message =
+                $"What dates do you want to track availability for?\n" +
+                $"Reply with a list of dates in M/D format, separated by commas (e.g., '6/15,6/16,6/17').";
+
+            await SendMessageAsync(channelId, message);
         }
 
         private async Task AddPermitZonesToTrackListAsync(ConversationState state)
@@ -129,8 +141,37 @@ namespace CampsiteAvailabilityScanner.Services
                 string[] result = await apiClient.GetCampsiteIdsForZone(state, zone);
                 File.AppendAllText("trackList.json", string.Join("\n", result) + Environment.NewLine);
             }
+            Console.WriteLine($"Added permit ID {state.CurrentParkInformation.PermitId} with zones {string.Join(", ", state.SelectedZones)} and dates {string.Join(", ", state.SelectedDates ?? new string[0])} to trackList.json");
+        }
 
-            Console.WriteLine($"Added permit ID {state.CurrentParkInformation.PermitId} with zones {string.Join(", ", state.SelectedZones)} to tracking list.");
+        private async Task ProcessDateResponseAsync(string channelId, string body, ConversationState state)
+        {
+            var selectedDatesMonthDateFormat = body.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(dateStr => DateTime.TryParse(dateStr, out DateTime date))
+                .Select(dateStr => DateTime.Parse(dateStr).ToString("M/d"))
+                .ToArray();
+
+            if (selectedDatesMonthDateFormat.Length == 0)
+            {
+                await SendMessageAsync(channelId, "Please provide valid dates in M/D format. Example: 6/5 or 10/22");
+                return;
+            }
+
+            var selectedDatesYearFormat = selectedDatesMonthDateFormat
+                .Select(dateStr => DateTime.Now.Year + DateTime.Parse(dateStr).ToString("-MM-dd"))
+                .ToArray();
+
+            state.SelectedDates = selectedDatesYearFormat;
+            if (state.SelectedZones.Length == 0)
+            {
+                await SendMessageAsync(channelId, "No zones selected to track. Please start over.");
+                state.LastQuestionAsked = null; // reset state
+                return;
+            }
+            await AddPermitZonesToTrackListAsync(state);
+            await SendMessageAsync(channelId, $"✅ Tracking dates: {string.Join(", ", selectedDatesMonthDateFormat)} for *{state.CurrentParkInformation.PermitSiteName}* zones _{string.Join(", ", state.SelectedZones)}_.");
+
+            state.LastQuestionAsked = null; // reset state
         }
 
         private async Task PrintTrackedSitesAsync(string channelId)
