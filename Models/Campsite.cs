@@ -12,6 +12,9 @@ namespace CampsiteAvailabilityScanner.Models
 
         [JsonPropertyName("permitSite")]
         public string PermitSite { get; set; } = string.Empty;
+        
+        [JsonPropertyName("permitId")]
+        public string PermitId { get; set; } = string.Empty;
     }
 
 }

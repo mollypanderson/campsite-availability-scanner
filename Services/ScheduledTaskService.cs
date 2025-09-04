@@ -88,11 +88,19 @@ public class ScheduledTaskService : BackgroundService
             }
 
         }
+
+        // Sort dates
+        var sortedDates = combinedDatesForZones
+            .Select(date => DateTime.Parse(date))
+            .OrderBy(date => date)
+            .Select(date => date.ToString("M/d"))
+            .ToList();
+
         foreach (var zone in permitZonesAvailabilityResult.Zones.Split(", "))
         {
             if (combinedDatesForZones.Count > 0)
             {
-                builder.AppendLine($" - {zone}: {string.Join(", ", combinedDatesForZones)}");
+                builder.AppendLine($" - {zone}: {string.Join(", ", sortedDates)}");
                 anyAvailability = true;
             }
 

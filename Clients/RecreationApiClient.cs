@@ -82,6 +82,7 @@ public class RecreationApiClient
                     ["campsiteId"] = divisionId,
                     ["zone"] = districtName,
                     ["permitSite"] = state.CurrentParkInformation.PermitSiteName,
+                    ["permitId"] = state.CurrentParkInformation.PermitId
                 };
                 arrayList.Add(json.ToJsonString());
             }
@@ -95,7 +96,7 @@ public class RecreationApiClient
     {
         List<string> availableDates = new List<string>();
         JsonObject availabilityResults = new JsonObject();
-        string url = $"https://www.recreation.gov/api/permititinerary/4675338/division/{campsite.CampsiteId}/availability/month?month={9}&year={2025}";
+        string url = $"https://www.recreation.gov/api/permititinerary/{campsite.PermitId}/division/{campsite.CampsiteId}/availability/month?month=9&year=2025";
 
         using var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -122,7 +123,7 @@ public class RecreationApiClient
                         {
                             availability = true;
                             availabilityResults[item.Name] = new JsonArray { "Hop Valley", "La Verkin Creek" };
-                            availableDates.Add(DateTime.Parse(item.Name).ToString("M/d")); //format dates to MM/DD
+                            availableDates.Add(item.Name); //format dates to MM/DD
 
                             // ((JsonArray)availabilityResults[permitZoneIdAndNames[campsite.CampsiteId]]!).Add(new JsonObject { ["date"] = item.Name, ["available"] = availability });
                         }
