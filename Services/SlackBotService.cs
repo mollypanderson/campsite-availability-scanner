@@ -81,7 +81,7 @@ namespace CampsiteAvailabilityScanner.Services
                     .Select(kvp => $"{kvp.Key}) {kvp.Value}"));
 
             string message =
-                $"Found: {state.CurrentParkInformation.PermitSiteName} associated with permit id {state.CurrentParkInformation.PermitId}\n\n" +
+                $"Found: *{state.CurrentParkInformation.PermitSiteName}* associated with permit id {state.CurrentParkInformation.PermitId}\n\n" +
                 $"Which zone(s) do you want to track?\n\t{numberedList}\n\n" +
                 $"Reply with the zone numbers separated by commas (e.g., '2' or '2,4,5'). Or 'ALL'.";
 

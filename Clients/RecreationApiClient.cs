@@ -28,10 +28,7 @@ public class RecreationApiClient
 
         string? permitSiteName = result.RootElement
             .GetProperty("payload")
-            .GetProperty("addresses")
-            .EnumerateArray()
-            .Select(addr => addr.GetProperty("description1").GetString())
-            .FirstOrDefault();
+            .GetProperty("name").GetString();
 
         var resultBuilder = new JsonObject();
         resultBuilder.Add("permitId", permitId);
