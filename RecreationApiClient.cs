@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using CampsiteAvailabilityScanner.Models;
+using Twilio.Rest.Serverless.V1.Service.Environment;
 
 public class RecreationApiClient
 {
@@ -93,10 +94,10 @@ public class RecreationApiClient
 
     }
 
-    public async Task<JsonObject?> GetPermitZoneAvailabilityAsync(Campsite campsite)
+    public async Task<List<string>> GetPermitZoneAvailabilityAsync(Campsite campsite)
     {
-        var availabilityResults = new JsonObject();
-
+        List<string> availableDates = new List<string>();
+        JsonObject availabilityResults = new JsonObject();
         string url = $"https://www.recreation.gov/api/permititinerary/4675338/division/{campsite.CampsiteId}/availability/month?month={9}&year={2025}";
 
         using var response = await _httpClient.GetAsync(url);
@@ -104,24 +105,50 @@ public class RecreationApiClient
 
         var stream = await response.Content.ReadAsStreamAsync();
         JsonDocument result = await JsonDocument.ParseAsync(stream);
-        JsonElement constantQuotaUsageDaily = result.RootElement.GetProperty("payload").GetProperty("quota_type_maps").GetProperty("ConstantQuotaUsageDaily");
-        foreach (var item in constantQuotaUsageDaily.EnumerateObject())
+
+        if (result.RootElement.TryGetProperty("payload", out JsonElement payload) &&
+            payload.TryGetProperty("quota_type_maps", out JsonElement quotaMaps))
         {
-            if (item.Value.GetProperty("show_walkup").GetBoolean() == false
-                && item.Value.GetProperty("is_hidden").GetBoolean() == false)
+            if (quotaMaps.TryGetProperty("ConstantQuotaUsageDaily", out JsonElement constantQuotaUsageDaily))
             {
-                Boolean availability = false;
-                if (item.Value.GetProperty("remaining").GetInt32() > 0)
+                // ✅ Property exists, you can safely use it
+                // e.g., parse availability data
+               // JsonElement constantQuotaUsageDaily = result.RootElement.GetProperty("payload")!.GetProperty("quota_type_maps")!.GetProperty("ConstantQuotaUsageDaily")!;
+                foreach (var item in constantQuotaUsageDaily.EnumerateObject())
                 {
-                    availability = true;
-                    availabilityResults[item.Name] = new JsonArray { "Hop Valley", "La Verkin Creek" };
-                    //((JsonArray)availabilityResults[permitZoneIdAndNames[campsite.CampsiteId]]!).Add(new JsonObject { ["date"] = item.Name, ["available"] = availability });
+                    if (item.Value.GetProperty("show_walkup").GetBoolean() == false
+                        && item.Value.GetProperty("is_hidden").GetBoolean() == false)
+                    {
+                        Boolean availability = false;
+
+                        if (item.Value.GetProperty("remaining").GetInt32() > 0)
+                        {
+                            availability = true;
+                            availabilityResults[item.Name] = new JsonArray { "Hop Valley", "La Verkin Creek" };
+                            availableDates.Add(DateTime.Parse(item.Name).ToString("M/d")); //format dates to MM/DD
+
+                            // ((JsonArray)availabilityResults[permitZoneIdAndNames[campsite.CampsiteId]]!).Add(new JsonObject { ["date"] = item.Name, ["available"] = availability });
+                        }
+                    }
                 }
             }
+            else
+            {
+                // ❌ Property missing — log what you got instead
+                Console.WriteLine("ConstantQuotaUsageDaily property not found. quotaMaps JSON:");
+                Console.WriteLine(quotaMaps.ToString());
+            }
+        }
+        else
+        {
+            // ❌ Either "payload" or "quota_type_maps" missing
+            Console.WriteLine("Payload or quota_type_maps property not found. Full JSON response:");
+            Console.WriteLine(result.RootElement.ToString());
         }
 
+
         // Console.WriteLine("result: " + resultBuilder.ToJsonString());
-        return availabilityResults;
+        return availableDates;
 
     }
 

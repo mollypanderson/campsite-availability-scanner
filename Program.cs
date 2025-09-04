@@ -2,38 +2,91 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using CampsiteAvailabilityScanner.Services;
+using System.Text.Json.Nodes;
 
 class Program
 {
+    private static readonly HashSet<string> _processedEventIds = new();
+
     static void Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
         builder.Services.AddHostedService<ScheduledTaskService>();
-        builder.WebHost.UseUrls("http://localhost:5167"); // <-- force HTTP
+        builder.WebHost.UseUrls("http://localhost:5167"); // HTTP only
+
         var app = builder.Build();
 
-        // Configure Twilio credentials
+        // Load environment variables
         DotNetEnv.Env.Load();
-        string accountSid = Environment.GetEnvironmentVariable("TWILIO_ACCOUNT_SID")!;
-        string authToken = Environment.GetEnvironmentVariable("TWILIO_AUTH_TOKEN")!;
-        string sandboxNumber = "whatsapp:+14155238886";
+        string slackBotToken = Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")!;
 
-        // Instantiate the bot service
-        var botService = new WhatsAppBotService(accountSid, authToken, sandboxNumber);
+        var slackBotService = new SlackBotService(slackBotToken);
 
-        // Twilio webhook endpoint
-        app.MapPost("/whatsapp", async (HttpRequest request) =>
+        app.MapPost("/slack/events", async (HttpRequest request) =>
         {
-            var form = await request.ReadFormAsync();
-            string from = form["From"];
-            string body = form["Body"];
+            try
+            {
+                using var reader = new StreamReader(request.Body);
+                var body = await reader.ReadToEndAsync();
 
-            botService.HandleIncomingMessage(from, body);
+                Console.WriteLine($"Received Slack event: {body}");
 
-            return Results.Ok();
+                var json = JsonNode.Parse(body)!;
+                string eventType = json["type"]?.ToString() ?? "";
+                string eventId = json["event_id"]?.ToString() ?? "";
+
+                // Slack URL verification challenge
+                if (eventType == "url_verification")
+                {
+                    return Results.Ok(new { challenge = json["challenge"]!.ToString() });
+                }
+
+                // Avoid processing the same event multiple times
+                if (!_processedEventIds.Add(eventId))
+                    return Results.Ok();
+
+                var eventProp = json["event"]!;
+                bool hidden = eventProp["hidden"]?.GetValue<bool>() ?? false;
+
+                // Ignore hidden/unfurl messages
+                if (hidden)
+                    return Results.Ok();
+
+                // Determine the actual message element
+                var messageElement = eventProp["subtype"]?.ToString() == "message_changed"
+                    ? eventProp["message"]!
+                    : eventProp;
+
+                // Ignore bot messages
+                if (messageElement["bot_id"] != null || messageElement["user"] == null)
+                    return Results.Ok();
+
+                string channelId = "C09DEDCDC2E";
+                string userId = messageElement["user"]!.ToString();
+                string text = messageElement["text"]!.ToString();
+
+                // Clean Slack formatting: <url|url> -> url
+                if (text.StartsWith("<") && text.Contains("|"))
+                {
+                    int pipe = text.IndexOf('|');
+                    int end = text.IndexOf('>', pipe);
+                    if (pipe > 0 && end > 0)
+                        text = text.Substring(pipe + 1, end - pipe - 1);
+                }
+
+                // Forward to your SlackBotService
+                await slackBotService.HandleIncomingMessageAsync(channelId, userId, text);
+
+                return Results.Ok();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Error handling Slack event: " + ex);
+                return Results.StatusCode(500);
+            }
         });
 
         app.Run();
-
     }
 }

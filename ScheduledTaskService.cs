@@ -3,6 +3,9 @@ using System.IO;
 using System.Text.Json;
 using System.Collections.Generic;
 using CampsiteAvailabilityScanner.Models;
+using CampsiteAvailabilityScanner.Services;
+using System.Text.Json.Nodes;
+using System.Text;
 
 public class ScheduledTaskService : BackgroundService
 {
@@ -10,14 +13,13 @@ public class ScheduledTaskService : BackgroundService
     {
         while (!stoppingToken.IsCancellationRequested)
         {
-            await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
             Console.WriteLine($"{DateTime.Now} Scanning for permit availability...");
 
-            string filePath = "trackList.json"; 
+            string filePath = "trackList.json";
 
             var campsitesToTrack = new List<Campsite>();
 
-            var apiClient = new RecreationApiClient();
+            HashSet<string> permitSites = new HashSet<string>();
 
             foreach (var line in File.ReadLines(filePath))
             {
@@ -27,11 +29,80 @@ public class ScheduledTaskService : BackgroundService
                 if (campsite != null)
                 {
                     campsitesToTrack.Add(campsite);
-                    await apiClient.GetPermitZoneAvailabilityAsync(campsite);
                 }
             }
-             
-          //  await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
+
+            var messageBuilder = new StringBuilder();
+
+            // Group by unique permit site name
+            var groupedBySite = campsitesToTrack
+                .GroupBy(c => c.PermitSite);
+
+            foreach (var group in groupedBySite)
+            {
+                // Call helper for each permit site
+                string siteResult = await BuildResultForPermitSite(group.ToList());
+
+                if (!string.IsNullOrWhiteSpace(siteResult))
+                {
+
+                    messageBuilder.AppendLine($":rotating_light::camping: *Permits available!*\n");
+                    messageBuilder.AppendLine(siteResult);
+
+                    SlackBotService slackBotService = new SlackBotService(Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")!);
+                    await slackBotService.SendAvailabilityAlertAsync("C09DEDCDC2E", $"{messageBuilder.ToString()}");
+                    messageBuilder.Clear();
+                }
+
+            }
+
+            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            return;
         }
     }
+
+    private async Task<string> BuildResultForPermitSite(List<Campsite> campsitesForPermitSite)
+    {
+        bool anyAvailability = false;
+        HashSet<string> combinedDatesForZones = new HashSet<string>();
+
+        PermitZonesAvailabilityResult permitZonesAvailabilityResult = new PermitZonesAvailabilityResult
+        {
+            PermitId = campsitesForPermitSite.First().PermitSite,
+            PermitName = campsitesForPermitSite.First().PermitSite,
+            Zones = string.Join(", ", campsitesForPermitSite.Select(c => c.Zone).Distinct())
+        };
+
+        var apiClient = new RecreationApiClient();
+        var siteName = campsitesForPermitSite.First().PermitSite;
+        var builder = new StringBuilder();
+
+        builder.AppendLine($"*{siteName}*");
+
+        foreach (var campsite in campsitesForPermitSite)
+        {
+            List<string> availableDatesForCampsite = await apiClient.GetPermitZoneAvailabilityAsync(campsite);
+            foreach (var date in availableDatesForCampsite)
+            {
+                combinedDatesForZones.Add(date);
+            }
+
+        }
+        foreach (var zone in permitZonesAvailabilityResult.Zones.Split(", "))
+        {
+            if (combinedDatesForZones.Count > 0)
+            {
+                builder.AppendLine($" - {zone}: {string.Join(", ", combinedDatesForZones)}");
+                anyAvailability = true;
+            }
+
+        }
+
+        builder.AppendLine(); // spacing after each site
+
+        return anyAvailability ? builder.ToString() : string.Empty;
+    }
+
+
 }
+
