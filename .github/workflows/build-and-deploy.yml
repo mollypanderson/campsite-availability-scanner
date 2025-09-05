@@ -1,0 +1,56 @@
+name: Deploy to Orange Pi
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up SSH
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.PI_SSH_PRIVATE_KEY }}
+
+      - name: Deploy to Orange Pi
+        run: |
+          ssh -o StrictHostKeyChecking=no ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }} << 'EOF'
+            set -e
+
+            # Go to bot directory
+            cd ${{ secrets.PI_WORKING_DIR }}
+
+            echo "Pulling latest code..."
+            git fetch --all
+            git reset --hard origin/main
+
+            # Generate .env file with production secrets
+            echo "Creating .env file..."
+            cp .env.template .env
+            sed -i "s|\${slack_bot_token}|${{ secrets.SLACK_BOT_TOKEN_PROD }}|g" .env
+            sed -i "s|\${slack_signing_secret}|${{ secrets.SLACK_SIGNING_SECRET_PROD }}|g" .env
+            sed -i "s|\${port}|${{ secrets.PORT_PROD }}|g" .env
+            echo "ENV=production" >> .env
+
+            # Check if .NET SDK is installed
+            if ! command -v dotnet &> /dev/null
+            then
+                echo ".NET SDK not found. Installing .NET SDK..."
+                wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+                bash dotnet-install.sh --channel 7.0
+                export PATH="$HOME/.dotnet:$PATH"
+            fi
+
+            echo "Building .NET project..."
+            dotnet build --configuration Release
+
+            echo "Restarting bot service..."
+            sudo systemctl restart ${{ secrets.PI_SERVICE_NAME }}
+
+            echo "Deployment complete."
+          EOF

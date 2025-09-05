@@ -1,0 +1,33 @@
+# Environment variables
+.env
+
+# Build outputs
+bin/
+obj/
+out/
+
+# Visual Studio / Rider / VS Code files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.idea/
+.vscode/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# NuGet packages
+*.nupkg
+packages/
+# NuGet cache
+.nuget/
+
+# OS generated files
+.DS_Store
+Thumbs.db

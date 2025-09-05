@@ -35,9 +35,14 @@ namespace CampsiteAvailabilityScanner.Services
                 {
                     await PrintTrackedSitesAsync(channelId);
                 }
-                else
+                else if (body.Trim().StartsWith("ADD ", StringComparison.OrdinalIgnoreCase))
                 {
-                    await ProcessPermitUrlAndAskWhichZonesAsync(channelId, body, state);
+                    string urlPart = body.Trim().Substring(4).Trim();
+                    await ProcessPermitUrlAndAskWhichZonesAsync(channelId, urlPart, state);
+                }
+                else
+                { 
+                    await ShareInstructionsAsync(channelId, state);
                 }
             }
             else if (state.LastQuestionAsked == "ask_permit_zones")
@@ -207,7 +212,7 @@ namespace CampsiteAvailabilityScanner.Services
         {
             string instructions = "That's not a valid command.\n\nOptions: \n" +
                                   "\t- Enter `LIST` to list all the sites you are tracking\n" +
-                                  "\t- Enter a Recreation.gov permit URL to choose from a list of zones for that permit site to track. Example: `https://www.recreation.gov/permits/4675338`";
+                                  "\t- Enter `ADD ` + a Recreation.gov permit URL to choose from a list of zones for that permit site to track. Example: `ADD https://www.recreation.gov/permits/4675338`";
             state.LastQuestionAsked = null; // reset state
             await SendMessageAsync(channelId, instructions);
         }
