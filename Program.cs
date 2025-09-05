@@ -25,6 +25,13 @@ class Program
 
         app.MapPost("/slack/events", async (HttpRequest request) =>
         {
+            string signingSecret = Environment.GetEnvironmentVariable("SLACK_SIGNING_SECRET")!;
+
+            if (!SlackRequestVerifier.VerifyRequest(request, signingSecret))
+            {
+                return Results.StatusCode(401); 
+            }
+
             try
             {
                 using var reader = new StreamReader(request.Body);
