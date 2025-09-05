@@ -34,6 +34,7 @@ jobs:
             cp .env.template .env
             sed -i "s|\${slack_bot_token}|${{ secrets.SLACK_BOT_TOKEN_PROD }}|g" .env
             sed -i "s|\${slack_signing_secret}|${{ secrets.SLACK_SIGNING_SECRET_PROD }}|g" .env
+            sed -i "s|\${port}|${{ secrets.PORT_PROD }}|g" .env
             echo "ENV=production" >> .env
 
             # Check if .NET SDK is installed

@@ -13,13 +13,18 @@ class Program
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddHostedService<ScheduledTaskService>();
-        builder.WebHost.UseUrls("http://localhost:5167"); // HTTP only
+        string port = Environment.GetEnvironmentVariable("PORT") ?? "5167";
+        builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
 
         var app = builder.Build();
 
         // Load environment variables
         DotNetEnv.Env.Load();
+        string env = Environment.GetEnvironmentVariable("ENV") ?? "development";
         string slackBotToken = Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")!;
+        string slackSigningSecret = Environment.GetEnvironmentVariable("SLACK_SIGNING_SECRET")!;
+
+        Console.WriteLine($"Running in {env} mode");
 
         var slackBotService = new SlackBotService(slackBotToken);
 
