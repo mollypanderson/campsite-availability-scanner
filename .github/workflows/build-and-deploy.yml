@@ -1,4 +1,4 @@
-name: Deploy to Orange Pi
+name: Deploy to Orange Pi via Ngrok
 
 on:
   push:
@@ -18,9 +18,10 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.PI_SSH_PRIVATE_KEY }}
 
-      - name: Deploy to Orange Pi
+      - name: Deploy via Ngrok SSH
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }} << EOF
+          echo "Connecting to Pi via ngrok..."
+          ssh -o StrictHostKeyChecking=no -p ${{ secrets.PORT }} ${{ secrets.PI_USER }}@${{ secrets.PI_NGROK_HOST }} << EOF
             set -e
 
             # Go to bot directory
@@ -30,12 +31,12 @@ jobs:
             git fetch --all
             git reset --hard origin/main
 
-            # Generate .env file with production secrets
+            # Create .env file for production
             echo "Creating .env file..."
             cp .env.template .env
             sed -i "s|\${slack_bot_token}|${{ secrets.SLACK_BOT_TOKEN_PROD }}|g" .env
             sed -i "s|\${slack_signing_secret}|${{ secrets.SLACK_SIGNING_SECRET_PROD }}|g" .env
-            sed -i "s|\${port}|${{ secrets.PORT_PROD }}|g" .env
+            sed -i "s|\${port}|${{ secrets.PORT }}|g" .env
             echo "ENV=production" >> .env
 
             # Check if .NET SDK is installed
