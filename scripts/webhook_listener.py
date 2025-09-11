@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 
 # Load the secret from environment variable
 GITHUB_WEBHOOK_SECRET = os.environ.get("GITHUB_WEBHOOK_SECRET", "").encode()
-DEPLOY_SCRIPT = "/home/molly/campsite-availability-scanner/deploy.sh"
+DEPLOY_SCRIPT = "/home/molly/campsite-availability-scanner/scripts/deploy.sh"
 PORT = 9000 
 
 class WebhookHandler(BaseHTTPRequestHandler):
