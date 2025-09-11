@@ -10,20 +10,29 @@ public static class Utils
     }
 
     public static string ExtractUrlFromSlackMessage(string message)
+    {
+        message = message.Trim();
+
+        if (message.StartsWith("<") && message.EndsWith(">"))
         {
-            message = message.Trim();
+            // Remove < and >
+            message = message[1..^1];
 
-            if (message.StartsWith("<") && message.EndsWith(">"))
-            {
-                // Remove < and >
-                message = message[1..^1];
-
-                // Split on | and take the first part (the actual URL)
-                var parts = message.Split('|');
-                message = parts[0];
-            }
-
-            return message;
+            // Split on | and take the first part (the actual URL)
+            var parts = message.Split('|');
+            message = parts[0];
         }
+
+        return message;
+    }
+
+    public static string ReadSecret(string name)
+    {
+        string secretPath = $"/run/secrets/{name}";
+        if (File.Exists(secretPath))
+            return File.ReadAllText(secretPath).Trim();
+        else
+            return Environment.GetEnvironmentVariable(name) ?? throw new Exception($"Secret {name} not found");
+    }
 
 }

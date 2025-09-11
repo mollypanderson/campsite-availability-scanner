@@ -1,57 +1,41 @@
-name: Deploy to Orange Pi
+name: Build and Deploy
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:  
 
 jobs:
-  deploy:
+  build-and-deploy:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set up SSH
-        uses: webfactory/ssh-agent@v0.9.0
+      - name: Log in to GHCR
+        uses: docker/login-action@v2
         with:
-          ssh-private-key: ${{ secrets.PI_SSH_PRIVATE_KEY }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Deploy to Orange Pi
+      - name: Build Docker image with secret mounts
         run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.PI_USER }}@${{ secrets.PI_HOST }} << 'EOF'
-            set -e
+          docker build \
+            --secret id=slack_bot_token,env=SLACK_BOT_TOKEN_PROD \
+            --secret id=slack_signing_secret,env=SLACK_SIGNING_SECRET_PROD \
+            --secret id=ngrok_authtoken,env=NGROK_AUTHTOKEN_PROD \
+            --secret id=port,env=PORT_PROD \
+            --secret id=channel_id,env=CHANNEL_ID_PROD \
+            -t ghcr.io/youruser/campsite-bot:latest .
 
-            # Go to bot directory
-            cd ${{ secrets.PI_WORKING_DIR }}
+      - name: Push Docker image
+        run: |
+          docker push ghcr.io/youruser/campsite-bot:latest
 
-            echo "Pulling latest code..."
-            git fetch --all
-            git reset --hard origin/main
-
-            # Generate .env file with production secrets
-            echo "Creating .env file..."
-            cp .env.template .env
-            sed -i "s|\${slack_bot_token}|${{ secrets.SLACK_BOT_TOKEN_PROD }}|g" .env
-            sed -i "s|\${slack_signing_secret}|${{ secrets.SLACK_SIGNING_SECRET_PROD }}|g" .env
-            sed -i "s|\${port}|${{ secrets.PORT_PROD }}|g" .env
-            echo "ENV=production" >> .env
-
-            # Check if .NET SDK is installed
-            if ! command -v dotnet &> /dev/null
-            then
-                echo ".NET SDK not found. Installing .NET SDK..."
-                wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-                bash dotnet-install.sh --channel 7.0
-                export PATH="$HOME/.dotnet:$PATH"
-            fi
-
-            echo "Building .NET project..."
-            dotnet build --configuration Release
-
-            echo "Restarting bot service..."
-            sudo systemctl restart ${{ secrets.PI_SERVICE_NAME }}
-
-            echo "Deployment complete."
-          EOF
+      - name: Notify Pi webhook
+        run: |
+          curl -X POST https://campsitebot.kozow.com/deploy

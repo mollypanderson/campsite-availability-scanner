@@ -1,0 +1,16 @@
+version: '3.8'
+
+services:
+  campsite-bot:
+    image: campsite-bot:latest
+    container_name: campsite-bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env           # <- this line mounts your dynamically generated .env
+    ports:
+      - "${PORT}:${PORT}"   # exposes your bot port
+    restart: always
+    volumes:
+      - ./logs:/app/logs   # optional, if you want to persist logs

@@ -9,6 +9,8 @@ using System.Text;
 
 public class ScheduledTaskService : BackgroundService
 {
+    private string channelId = Utils.ReadSecret("CHANNEL_ID")!;
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -49,8 +51,11 @@ public class ScheduledTaskService : BackgroundService
                     messageBuilder.AppendLine($":rotating_light::camping: *Permits available!*\n");
                     messageBuilder.AppendLine(siteResult);
 
-                    SlackBotService slackBotService = new SlackBotService(Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")!);
-                    await slackBotService.SendAvailabilityAlertAsync("C09DEDCDC2E", $"{messageBuilder.ToString()}");
+                    string slackBotToken = Utils.ReadSecret("SLACK_BOT_TOKEN")!;
+                    ISlackClient slackClient = new SlackClient(slackBotToken);
+
+                    SlackBotService slackBotService = new SlackBotService(slackClient, channelId);
+                    await slackBotService.SendAvailabilityAlertAsync(channelId, $"{messageBuilder.ToString()}");
                     messageBuilder.Clear();
                 }
 
