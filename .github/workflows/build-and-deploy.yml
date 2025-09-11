@@ -30,11 +30,11 @@ jobs:
             --secret id=ngrok_authtoken,env=NGROK_AUTHTOKEN_PROD \
             --secret id=port,env=PORT_PROD \
             --secret id=channel_id,env=CHANNEL_ID_PROD \
-            -t ghcr.io/youruser/campsite-bot:latest .
+            -t ghcr.io/mollypanderson/campsite-availability-scanner:latest .
 
       - name: Push Docker image
         run: |
-          docker push ghcr.io/youruser/campsite-bot:latest
+          docker push ghcr.io/mollypanderson/campsite-availability-scanner:latest
 
       - name: Notify Pi webhook
         run: |
