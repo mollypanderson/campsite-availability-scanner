@@ -2,7 +2,7 @@
 set -e
 
 # --- CONFIGURATION ---
-IMAGE_NAME="ghcr.io/<YOUR_GITHUB_USERNAME>/campsite-availability-scanner:latest"
+IMAGE_NAME="ghcr.io/mollypanderson/campsite-availability-scanner:latest"
 CONTAINER_NAME="campsite-scanner"
 SECRETS_DIR="/home/molly/secrets"
 
