@@ -38,4 +38,4 @@ jobs:
 
       - name: Notify Pi webhook
         run: |
-          curl -X POST https://YOUR_PI_PUBLIC_WEBHOOK_URL/deploy
+          curl -X POST https://campsitebot.kozow.com/deploy
