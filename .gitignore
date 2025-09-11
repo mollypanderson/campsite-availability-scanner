@@ -31,3 +31,7 @@ packages/
 # OS generated files
 .DS_Store
 Thumbs.db
+
+.env.development
+.env.production
+.env

@@ -19,6 +19,12 @@ The Campsite Availability Scanner is a lightweight .NET Web App that:
 
 ## Resources
 List of interesting permits:
+
+Washington: 
 - [Mount Rainier National Park Wilderness and Climbing Permits](https://www.recreation.gov/permits/4675317)
+- [North Cascades National Park Backcountry Permits](https://www.recreation.gov/permits/4675322)
+
+Utah: 
 - [Grand Canyon National Park Backcountry Permits](https://www.recreation.gov/permits/4675337)
 - [Zion National Park Overnight Wilderness Permits](https://www.recreation.gov/permits/4675338)
+- [Bryce Canyon National Park Backcountry Permits](https://www.recreation.gov/permits/4675330)

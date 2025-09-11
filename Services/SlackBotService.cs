@@ -13,21 +13,20 @@ namespace CampsiteAvailabilityScanner.Services
 {
     public class SlackBotService
     {
-        private readonly ConcurrentDictionary<string, ConversationState> _userStates;
-        private readonly string _slackBotToken;
-        private readonly HttpClient _httpClient;
+        private readonly ISlackClient slackClient;
+        private readonly string channelId; 
+        private readonly ConcurrentDictionary<string, ConversationState> userStates;
 
-        public SlackBotService(string slackBotToken)
+        public SlackBotService(ISlackClient slackClient, string channelId)
         {
-            _slackBotToken = slackBotToken;
-            _userStates = new ConcurrentDictionary<string, ConversationState>();
-            _httpClient = new HttpClient();
-            _httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _slackBotToken);
+            this.slackClient = slackClient;
+            this.channelId = channelId;
+            userStates = new ConcurrentDictionary<string, ConversationState>();
         }
 
         public async Task HandleIncomingMessageAsync(string userId, string channelId, string body)
         {
-            var state = _userStates.GetOrAdd(userId, _ => new ConversationState());
+            var state = userStates.GetOrAdd(userId, _ => new ConversationState());
 
             if (state.LastQuestionAsked == null)
             {
@@ -95,7 +94,8 @@ namespace CampsiteAvailabilityScanner.Services
                 $"Which zone(s) do you want to track?\n\t{numberedList}\n\n" +
                 $"Reply with the zone numbers separated by commas (e.g., '2' or '2,4,5'). Or 'ALL'.";
 
-            await SendMessageAsync(channelId, message);
+            await slackClient.SendMessageToChannelAsync
+            (channelId, message);
         }
 
         private async Task ProcessZoneResponseAsync(string channelId, string body, ConversationState state)
@@ -111,7 +111,8 @@ namespace CampsiteAvailabilityScanner.Services
 
                 if (selectedZoneNumbers.Length == 0)
                 {
-                    await SendMessageAsync(channelId, "Please provide valid zones, or type ALL.");
+                    await slackClient.SendMessageToChannelAsync
+                    (channelId, "Please provide valid zones, or type ALL.");
                     return;
                 }
 
@@ -134,7 +135,8 @@ namespace CampsiteAvailabilityScanner.Services
                 $"What dates do you want to track availability for?\n" +
                 $"Reply with a list of dates in M/D format, separated by commas (e.g., '6/15,6/16,6/17').";
 
-            await SendMessageAsync(channelId, message);
+            await slackClient.SendMessageToChannelAsync
+            (channelId, message);
         }
 
         private async Task AddPermitZonesToTrackListAsync(ConversationState state)
@@ -158,7 +160,8 @@ namespace CampsiteAvailabilityScanner.Services
 
             if (selectedDatesMonthDateFormat.Length == 0)
             {
-                await SendMessageAsync(channelId, "Please provide valid dates in M/D format. Example: 6/5 or 10/22");
+                await slackClient.SendMessageToChannelAsync
+                (channelId, "Please provide valid dates in M/D format. Example: 6/5 or 10/22");
                 return;
             }
 
@@ -169,12 +172,14 @@ namespace CampsiteAvailabilityScanner.Services
             state.SelectedDates = selectedDatesYearFormat;
             if (state.SelectedZones.Length == 0)
             {
-                await SendMessageAsync(channelId, "No zones selected to track. Please start over.");
+                await slackClient.SendMessageToChannelAsync
+                (channelId, "No zones selected to track. Please start over.");
                 state.LastQuestionAsked = null; // reset state
                 return;
             }
             await AddPermitZonesToTrackListAsync(state);
-            await SendMessageAsync(channelId, $"✅ Tracking dates: {string.Join(", ", selectedDatesMonthDateFormat)} for *{state.CurrentParkInformation.PermitSiteName}* zones _{string.Join(", ", state.SelectedZones)}_.");
+            await slackClient.SendMessageToChannelAsync
+            (channelId, $"✅ Tracking dates: {string.Join(", ", selectedDatesMonthDateFormat)} for *{state.CurrentParkInformation.PermitSiteName}* zones _{string.Join(", ", state.SelectedZones)}_.");
 
             state.LastQuestionAsked = null; // reset state
         }
@@ -183,7 +188,8 @@ namespace CampsiteAvailabilityScanner.Services
         {
             if (!File.Exists("trackList.json") || new FileInfo("trackList.json").Length == 0)
             {
-                await SendMessageAsync(channelId, "You are not tracking any sites yet.");
+                await slackClient.SendMessageToChannelAsync
+                (channelId, "You are not tracking any sites yet.");
                 return;
             }
 
@@ -205,7 +211,7 @@ namespace CampsiteAvailabilityScanner.Services
                     string.Join("\n", s.Zones.Select(z => $" - {z}"))
                 ));
 
-            await SendMessageAsync(channelId, message);
+            await slackClient.SendMessageToChannelAsync(channelId, message);
         }
 
         private async Task ShareInstructionsAsync(string channelId, ConversationState state)
@@ -214,31 +220,12 @@ namespace CampsiteAvailabilityScanner.Services
                                   "\t- Enter `LIST` to list all the sites you are tracking\n" +
                                   "\t- Enter `ADD ` + a Recreation.gov permit URL to choose from a list of zones for that permit site to track. Example: `ADD https://www.recreation.gov/permits/4675338`";
             state.LastQuestionAsked = null; // reset state
-            await SendMessageAsync(channelId, instructions);
+            await slackClient.SendMessageToChannelAsync(channelId, instructions);
         }
 
         public async Task SendAvailabilityAlertAsync(string channelId, string message)
         {
-            await SendMessageAsync(channelId, message);
-        }
-
-        private async Task SendMessageAsync(string channelId, string text)
-        {
-            using var http = new HttpClient();
-            http.DefaultRequestHeaders.Authorization =
-                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _slackBotToken);
-
-            var payload = new
-            {
-                channel = "C09DEDCDC2E",
-                text = text
-            };
-            var content = new StringContent(JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
-
-            // Fire-and-forget is safer if you don't need response immediately
-            var response = await http.PostAsync("https://slack.com/api/chat.postMessage", content);
-            var body = await response.Content.ReadAsStringAsync();
-            Console.WriteLine($"Sent to Slack: {body}");
+            await slackClient.SendMessageToChannelAsync(channelId, message);
         }
     }
 }

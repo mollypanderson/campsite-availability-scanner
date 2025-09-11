@@ -13,26 +13,28 @@ class Program
         var builder = WebApplication.CreateBuilder(args);
 
         builder.Services.AddHostedService<ScheduledTaskService>();
-        string port = Environment.GetEnvironmentVariable("PORT") ?? "5167";
+
+        DotNetEnv.Env.Load(); // Load from project root
+        string port = Utils.ReadSecret("PORT") ?? "5168";
         builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
 
         var app = builder.Build();
 
         // Load environment variables
-        DotNetEnv.Env.Load();
-        string env = Environment.GetEnvironmentVariable("ENV") ?? "development";
-        string slackBotToken = Environment.GetEnvironmentVariable("SLACK_BOT_TOKEN")!;
-        string slackSigningSecret = Environment.GetEnvironmentVariable("SLACK_SIGNING_SECRET")!;
+        string env = Utils.ReadSecret("ENV") ?? "development";
+        string slackBotToken = Utils.ReadSecret("SLACK_BOT_TOKEN")!;
+        string slackSigningSecret = Utils.ReadSecret("SLACK_SIGNING_SECRET")!;
+        string channelId = Utils.ReadSecret("CHANNEL_ID")!;
+
+        var slackClient = new SlackClient(slackBotToken);
 
         Console.WriteLine($"Running in {env} mode");
 
-        var slackBotService = new SlackBotService(slackBotToken);
+        var slackBotService = new SlackBotService(slackClient, channelId);
 
         app.MapPost("/slack/events", async (HttpRequest request) =>
         {
-            string signingSecret = Environment.GetEnvironmentVariable("SLACK_SIGNING_SECRET")!;
-
-            if (!SlackRequestVerifier.VerifyRequest(request, signingSecret))
+            if (!await SlackRequestVerifier.VerifyRequestAsync(request, slackSigningSecret))
             {
                 return Results.StatusCode(401); 
             }
@@ -74,7 +76,6 @@ class Program
                 if (messageElement["bot_id"] != null || messageElement["user"] == null)
                     return Results.Ok();
 
-                string channelId = "C09DEDCDC2E";
                 string userId = messageElement["user"]!.ToString();
                 string text = messageElement["text"]!.ToString();
 
@@ -88,7 +89,7 @@ class Program
                 }
 
                 // Forward to your SlackBotService
-                await slackBotService.HandleIncomingMessageAsync(channelId, userId, text);
+                await slackBotService.HandleIncomingMessageAsync(userId, channelId, text);
 
                 return Results.Ok();
             }
