@@ -15,10 +15,13 @@ class Program
         builder.Services.AddHostedService<ScheduledTaskService>();
 
         DotNetEnv.Env.Load(); // Load from project root
-        string port = Utils.ReadSecret("PORT") ?? "5168";
-        builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
+        
+        var port = Utils.ReadSecret("PORT") ?? "8080";
+      //  builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
 
         var app = builder.Build();
+
+        app.Urls.Add($"http://0.0.0.0:{port}"); // Listen on all interfaces
 
         // Load environment variables
         string env = Utils.ReadSecret("ENV") ?? "development";
