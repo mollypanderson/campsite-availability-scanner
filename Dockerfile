@@ -15,21 +15,8 @@ WORKDIR /app
 # Copy published output
 COPY --from=build /app/out .
 
-# Copy scripts folder
-COPY ./scripts ./scripts
-
-# Make all scripts executable
-RUN chmod +x ./scripts/*.sh
-
-# Install jq and curl for ngrok
-RUN apt-get update && apt-get install -y curl jq && rm -rf /var/lib/apt/lists/*
-
-# Copy entrypoint script
-COPY scripts/entrypoint.sh /app/entrypoint.sh
-RUN chmod +x /app/entrypoint.sh
-
 # Expose port for bot
-EXPOSE 5167
+EXPOSE 8080
 
-# Entrypoint
-ENTRYPOINT ["/app/entrypoint.sh"]
+# Start the application
+ENTRYPOINT ["dotnet", "campsite-availability-scanner.dll"]
