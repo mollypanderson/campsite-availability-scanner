@@ -29,7 +29,7 @@ jobs:
           
       - name: Build Docker image with secret mounts
         run: |
-          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/my-repo/my-service:${{ github.sha }}"
+          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mollypanderson/campsite-availability-scanner:${{ github.sha }}"
           docker build \
             --secret id=slack_bot_token,env=SLACK_BOT_TOKEN_PROD \
             --secret id=slack_signing_secret,env=SLACK_SIGNING_SECRET_PROD \
