@@ -1,4 +1,4 @@
-name: Build and Deploy
+name: Deploy to Cloud Run
 
 on:
   push:
@@ -12,8 +12,9 @@ jobs:
     env:
       DOCKER_BUILDKIT: 1
       COMPOSE_DOCKER_CLI_BUILD: 1
+
     steps:
-      - name: Checkout code
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Set up Google Cloud SDK
@@ -26,10 +27,10 @@ jobs:
       - name: Configure Docker auth for Artifact Registry
         run: |
           gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
-          
+
       - name: Build Docker image with secret mounts
         run: |
-          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/mollypanderson/campsite-availability-scanner:${{ github.sha }}"
+          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/campsite-availability-scanner/campsite-availability-scanner:${{ github.sha }}"
           docker build \
             --secret id=slack_bot_token,env=SLACK_BOT_TOKEN_PROD \
             --secret id=slack_signing_secret,env=SLACK_SIGNING_SECRET_PROD \
@@ -43,10 +44,12 @@ jobs:
         run: |
           docker push $IMAGE
 
-      - name: Deploy to Cloud Run
+      - name: Deploy to Cloud Run with runtime env vars
         run: |
-          gcloud run deploy my-service \
+          gcloud run deploy campsite-availability-scanner \
             --image $IMAGE \
             --region us-west1 \
             --platform managed \
-            --allow-unauthenticated
+            --allow-unauthenticated \
+            --set-env-vars SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }},SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }},PORT=${{ secrets.PORT_PROD }},CHANNEL_ID=${{ secrets.CHANNEL_ID_PROD }},APP_URL=${{ secrets.CLOUD_RUN_URL }}
+
