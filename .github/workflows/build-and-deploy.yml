@@ -25,11 +25,11 @@ jobs:
 
       - name: Configure Docker auth for Artifact Registry
         run: |
-          gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
+          gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
           
       - name: Build Docker image with secret mounts
         run: |
-          IMAGE="us-central1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/my-repo/my-service:${{ github.sha }}"
+          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/my-repo/my-service:${{ github.sha }}"
           docker build \
             --secret id=slack_bot_token,env=SLACK_BOT_TOKEN_PROD \
             --secret id=slack_signing_secret,env=SLACK_SIGNING_SECRET_PROD \
@@ -47,6 +47,6 @@ jobs:
         run: |
           gcloud run deploy my-service \
             --image $IMAGE \
-            --region us-central1 \
+            --region us-west1 \
             --platform managed \
             --allow-unauthenticated
