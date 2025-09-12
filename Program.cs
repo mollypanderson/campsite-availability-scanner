@@ -12,16 +12,15 @@ class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        var port = Utils.ReadSecret("PORT") ?? "8080";
+        //  builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
+        builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+
         builder.Services.AddHostedService<ScheduledTaskService>();
 
         DotNetEnv.Env.Load(); // Load from project root
-        
-        var port = Utils.ReadSecret("PORT") ?? "8080";
-      //  builder.WebHost.UseUrls($"http://localhost:{port}"); // HTTP only
 
         var app = builder.Build();
-
-        app.Urls.Add($"http://0.0.0.0:{port}"); // Listen on all interfaces
 
         // Load environment variables
         string env = Utils.ReadSecret("ENV") ?? "development";
