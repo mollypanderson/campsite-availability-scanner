@@ -1,55 +1,45 @@
-name: Deploy to Cloud Run
+name: Deploy Docker image to Cloud Run
 
 on:
   push:
     branches:
       - main
-  workflow_dispatch:
+  workflow_dispatch: 
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    env:
-      DOCKER_BUILDKIT: 1
-      COMPOSE_DOCKER_CLI_BUILD: 1
 
     steps:
-      - name: Checkout source
+      - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Google Cloud SDK
+      - name: Set up gcloud
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
           service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
 
-      - name: Configure Docker auth for Artifact Registry
+      - name: Configure Docker for Artifact Registry
         run: |
           gcloud auth configure-docker us-west1-docker.pkg.dev --quiet
 
-      - name: Build Docker image with secret mounts
+      - name: Build Docker image
         run: |
-          IMAGE="us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/campsite-availability-scanner/campsite-availability-scanner:${{ github.sha }}"
-          docker build \
-            --secret id=slack_bot_token,env=SLACK_BOT_TOKEN_PROD \
-            --secret id=slack_signing_secret,env=SLACK_SIGNING_SECRET_PROD \
-            --secret id=ngrok_authtoken,env=NGROK_AUTHTOKEN_PROD \
-            --secret id=port,env=PORT_PROD \
-            --secret id=channel_id,env=CHANNEL_ID_PROD \
-            -t $IMAGE .
-          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          IMAGE_BASE=us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/campsite-availability-scanner/campsite-availability-scanner
+          docker build -t $IMAGE_BASE:${{ github.sha }} -t $IMAGE_BASE:latest .
 
-      - name: Push Docker image
+      - name: Push Docker image (both tags)
         run: |
-          docker push $IMAGE
+          IMAGE_BASE=us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/campsite-availability-scanner/campsite-availability-scanner
+          docker push $IMAGE_BASE:${{ github.sha }}
+          docker push $IMAGE_BASE:latest
 
-      - name: Deploy to Cloud Run with runtime env vars
+      - name: Deploy to Cloud Run
         run: |
           gcloud run deploy campsite-availability-scanner \
-            --image $IMAGE \
+            --image us-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/campsite-availability-scanner/campsite-availability-scanner:${{ github.sha }} \
             --region us-west1 \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }},SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }},PORT=${{ secrets.PORT_PROD }},CHANNEL_ID=${{ secrets.CHANNEL_ID_PROD }},APP_URL=${{ secrets.CLOUD_RUN_URL }}
-
+            --set-env-vars ENV=production,SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }},SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }},CHANNEL_ID=${{ secrets.CHANNEL_ID_PROD }},APP_URL=${{ secrets.CLOUD_RUN_URL }}
