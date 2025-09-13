@@ -29,7 +29,15 @@ public class MongoService
 
         return userDoc.PermitAreas ?? new List<PermitArea>();
     }
-    
+
+    public async Task<List<UserTrackingList>> GetAllUserListsAsync()
+    {
+        // Empty filter = match all documents
+        var filter = Builders<UserTrackingList>.Filter.Empty;
+
+        return await _userTrackingCollection.Find(filter).ToListAsync();
+    }
+
     /// <summary>
     /// Upserts or merges a PermitArea for a specific user.
     /// Existing PermitAreas are updated (sites/dates merged) without overwriting old content.

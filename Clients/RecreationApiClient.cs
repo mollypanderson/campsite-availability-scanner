@@ -6,6 +6,7 @@ using System.Text.Json.Nodes;
 using System.Threading.Tasks;
 using CampsiteAvailabilityScanner.Models;
 using Twilio.Rest.Serverless.V1.Service.Environment;
+using System.Globalization;
 
 public class RecreationApiClient
 {
@@ -67,12 +68,12 @@ public class RecreationApiClient
         return permitArea;
     }
 
-    public async Task<List<string>> GetPermitZoneAvailabilityAsync(PermitArea permitArea, Site site)
+    public async Task<List<string>> GetPermitZoneAvailabilityAsync(string permitAreaName, string permitAreaId, Site site)
     {
         List<string> availableDates = new List<string>();
         // JsonObject availabilityResults = new JsonObject();
        // need to fix this url so the second variable refers to a specific campsite id
-        string url = $"https://www.recreation.gov/api/permititinerary/{permitArea.Id}/division/{site.Id}/availability/month?month=9&year=2025";
+        string url = $"https://www.recreation.gov/api/permititinerary/{permitAreaId}/division/{site.Id}/availability/month?month=9&year=2025";
 
         using var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -93,10 +94,11 @@ public class RecreationApiClient
                         && item.Value.GetProperty("is_hidden").GetBoolean() == false
                         && item.Value.GetProperty("remaining").GetInt32() > 0)
                     {
-                     //   if (campsite.Dates.Contains(item.Name))
-                     //   {
-                     //       availableDates.Add(item.Name); 
-                      //  }
+                        DateTime target = DateTime.ParseExact(item.Name, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+                       if (site.Dates.Any(d => d.Date == target.Date))
+                        {
+                            availableDates.Add(item.Name);
+                        }
                     }
                 }
             }
