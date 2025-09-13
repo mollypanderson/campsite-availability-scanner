@@ -53,5 +53,4 @@ jobs:
             --region us-west1 \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars ENV=production,SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }},SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }},CHANNEL_ID=${{ secrets.CHANNEL_ID_PROD }},APP_URL=${{ secrets.CLOUD_RUN_URL }},MONGO_URI=${{ secrets.MONGO_URI }} \
-            --timeout=10m
+            --set-env-vars ENV=production,SLACK_BOT_TOKEN=${{ secrets.SLACK_BOT_TOKEN_PROD }},SLACK_SIGNING_SECRET=${{ secrets.SLACK_SIGNING_SECRET_PROD }},CHANNEL_ID=${{ secrets.CHANNEL_ID_PROD }},APP_URL=${{ secrets.CLOUD_RUN_URL }},MONGO_URI=${{ secrets.MONGO_URI }} 
