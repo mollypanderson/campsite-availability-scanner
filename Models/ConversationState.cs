@@ -6,9 +6,10 @@ namespace CampsiteAvailabilityScanner.Models
 {
     public class ConversationState
     {
+        public string UserId { get; set; } = "";
         public string? LastQuestionAsked { get; set; }
-        public ParkInformation? CurrentParkInformation { get; set; }
-        public string[]? SelectedZones { get; set; }
-        public string[]? SelectedDates { get; set; }
+
+        public PermitArea? PermitArea;
+
     }
 }

@@ -10,6 +10,8 @@ class Program
 
     static void Main(string[] args)
     {
+        DotNetEnv.Env.Load(); // Load from project root
+
         var builder = WebApplication.CreateBuilder(args);
 
         var port = Utils.ReadSecret("PORT") ?? "8080";
@@ -17,8 +19,6 @@ class Program
         builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
         builder.Services.AddHostedService<ScheduledTaskService>();
-
-        DotNetEnv.Env.Load(); // Load from project root
 
         var app = builder.Build();
 

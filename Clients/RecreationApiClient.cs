@@ -16,89 +16,63 @@ public class RecreationApiClient
         _httpClient = httpClient ?? new HttpClient();
     }
 
-    public async Task<JsonObject?> GetPermitSiteInformation(string permitId)
+    public async Task<PermitArea?> GetPermitSiteInformation(string permitId)
     {
         string permitSiteInformationUrl = $"https://www.recreation.gov/api/permitcontent/{permitId}";
 
         using var response = await _httpClient.GetAsync(permitSiteInformationUrl);
         response.EnsureSuccessStatusCode();
 
-        var stream = await response.Content.ReadAsStreamAsync();
-        JsonDocument result = await JsonDocument.ParseAsync(stream);
+        await using var stream = await response.Content.ReadAsStreamAsync();
+        using var result = await JsonDocument.ParseAsync(stream);
 
-        string? permitSiteName = result.RootElement
-            .GetProperty("payload")
-            .GetProperty("name").GetString();
+        var payload = result.RootElement.GetProperty("payload");
 
-        var resultBuilder = new JsonObject();
-        resultBuilder.Add("permitId", permitId);
-        resultBuilder.Add("permitSiteName", permitSiteName);
-        // One-liner: grab all district values into "zones"
-        var zoneOptions = result.RootElement
-                       .GetProperty("payload")
-                       .GetProperty("divisions")
-                       .EnumerateObject()
-                        .Where(d => d.Value.TryGetProperty("children", out JsonElement children)
-                           && children.ValueKind == JsonValueKind.Array
-                           && children.GetArrayLength() > 0) // parent has non-empty children
-                       .Select(d => d.Value.GetProperty("district").GetString()!)
-                       .Distinct()
-                        .Select((district, index) => new KeyValuePair<string, string>($"{index + 1}", district))
-                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+        // Extract permit-level info
+        string permitSiteName = payload.GetProperty("name").GetString()!;
+        string permitIdFromJson = payload.GetProperty("divisions")
+            .EnumerateObject().First().Value.GetProperty("permit_id").GetString()!;
 
-        resultBuilder.Add("zoneOptions", new JsonObject(zoneOptions.Select(kvp => new KeyValuePair<string, JsonNode?>(kvp.Key, JsonValue.Create(kvp.Value))).ToArray()));
+        // Group divisions by district
+        var divisions = payload.GetProperty("divisions")
+            .EnumerateObject()
+            .Select(d => d.Value)
+            .Where(d =>
+                d.TryGetProperty("district", out JsonElement districtProp)
+                && !string.IsNullOrWhiteSpace(districtProp.GetString())
+                && (!d.TryGetProperty("is_hidden", out JsonElement hidden) || !hidden.GetBoolean())
+            )
+            .GroupBy(d => d.GetProperty("district").GetString()!);
 
-        Console.WriteLine(string.Join(", ", zoneOptions));
-
-        return resultBuilder;
-
-    }
-
-    public async Task<string[]> GetCampsiteIdsForZone(ConversationState state, string zone)
-    {
-        ArrayList arrayList = new ArrayList();
-        string permitSiteInformationUrl = $"https://www.recreation.gov/api/permitcontent/{state.CurrentParkInformation.PermitId}";
-
-        using var response = await _httpClient.GetAsync(permitSiteInformationUrl);
-        response.EnsureSuccessStatusCode();
-
-        var stream = await response.Content.ReadAsStreamAsync();
-        JsonDocument result = await JsonDocument.ParseAsync(stream);
-
-        var divisions = result.RootElement
-            .GetProperty("payload")
-            .GetProperty("divisions");
-
-        foreach (var division in divisions.EnumerateObject())
+        // Build StartingAreas
+        var startingAreas = divisions.Select(group => new StartingArea
         {
-            string divisionId = division.Value.GetProperty("id").GetString()!;
-            string districtName = division.Value.GetProperty("district").GetString()!;
-
-            if (districtName == zone)
+            Name = group.Key,
+            Sites = group.Select(d => new Site
             {
-                // add division.id to array list to return
-                var json = new JsonObject
-                {
-                    ["campsiteId"] = divisionId,
-                    ["zone"] = districtName,
-                    ["permitSite"] = state.CurrentParkInformation.PermitSiteName,
-                    ["permitId"] = state.CurrentParkInformation.PermitId,
-                    ["dates"] = new JsonArray(state.SelectedDates.Select(date => (JsonNode)date).ToArray())
+                Name = d.GetProperty("name").GetString()!,
+                Id = d.GetProperty("id").GetString()!,
+                Dates = new List<DateTime>() 
+            }).ToList()
+        }).ToList();
 
-                };
-                arrayList.Add(json.ToJsonString());
-            }
-        }
+        // Build PermitArea object
+        var permitArea = new PermitArea
+        {
+            Name = permitSiteName,
+            Id = permitIdFromJson,
+            StartingAreas = startingAreas
+        };
 
-        return (string[])arrayList.ToArray(typeof(string));
-
+        return permitArea;
     }
 
-    public async Task<List<string>> GetPermitZoneAvailabilityAsync(Campsite campsite)
+    public async Task<List<string>> GetPermitZoneAvailabilityAsync(PermitArea permitArea, Site site)
     {
         List<string> availableDates = new List<string>();
-       // JsonObject availabilityResults = new JsonObject();
-        string url = $"https://www.recreation.gov/api/permititinerary/{campsite.PermitId}/division/{campsite.CampsiteId}/availability/month?month=9&year=2025";
+        // JsonObject availabilityResults = new JsonObject();
+       // need to fix this url so the second variable refers to a specific campsite id
+        string url = $"https://www.recreation.gov/api/permititinerary/{permitArea.Id}/division/{site.Id}/availability/month?month=9&year=2025";
 
         using var response = await _httpClient.GetAsync(url);
         response.EnsureSuccessStatusCode();
@@ -119,10 +93,10 @@ public class RecreationApiClient
                         && item.Value.GetProperty("is_hidden").GetBoolean() == false
                         && item.Value.GetProperty("remaining").GetInt32() > 0)
                     {
-                        if (campsite.Dates.Contains(item.Name))
-                        {
-                            availableDates.Add(item.Name); 
-                        }
+                     //   if (campsite.Dates.Contains(item.Name))
+                     //   {
+                     //       availableDates.Add(item.Name); 
+                      //  }
                     }
                 }
             }

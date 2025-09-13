@@ -19,7 +19,7 @@ public class ScheduledTaskService : BackgroundService
 
             string filePath = "trackList.json";
 
-            var campsitesToTrack = new List<Campsite>();
+        //    var campsitesToTrack = new List<Campsite>();
 
             HashSet<string> permitSites = new HashSet<string>();
 
@@ -27,29 +27,29 @@ public class ScheduledTaskService : BackgroundService
             {
                 if (string.IsNullOrWhiteSpace(line)) continue;
 
-                var campsite = JsonSerializer.Deserialize<Campsite>(line);
-                if (campsite != null)
+           //     var campsite = JsonSerializer.Deserialize<Campsite>(line);
+            //    if (campsite != null)
                 {
-                    campsitesToTrack.Add(campsite);
+            //        campsitesToTrack.Add(campsite);
                 }
             }
 
             var messageBuilder = new StringBuilder();
 
             // Group by unique permit site name
-            var groupedBySite = campsitesToTrack
-                .GroupBy(c => c.PermitSite);
+        //    var groupedBySite = campsitesToTrack
+           //     .GroupBy(c => c.PermitSite);
 
-            foreach (var group in groupedBySite)
+          //  foreach (var group in groupedBySite)
             {
                 // Call helper for each permit site
-                string siteResult = await BuildResultForPermitSite(group.ToList());
+             //   string siteResult = await BuildResultForPermitSite(group.ToList());
 
-                if (!string.IsNullOrWhiteSpace(siteResult))
+             //   if (!string.IsNullOrWhiteSpace(siteResult))
                 {
 
                     messageBuilder.AppendLine($":rotating_light::camping: *Permits available!*\n");
-                    messageBuilder.AppendLine(siteResult);
+                //    messageBuilder.AppendLine(siteResult);
 
                     string slackBotToken = Utils.ReadSecret("SLACK_BOT_TOKEN")!;
                     ISlackClient slackClient = new SlackClient(slackBotToken);
@@ -61,60 +61,61 @@ public class ScheduledTaskService : BackgroundService
 
             }
 
-            await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+            await Task.Delay(TimeSpan.FromMinutes(50), stoppingToken);
             return;
         }
     }
 
-    private async Task<string> BuildResultForPermitSite(List<Campsite> campsitesForPermitSite)
-    {
-        bool anyAvailability = false;
-        HashSet<string> combinedDatesForZones = new HashSet<string>();
+  //  private async Task<string> BuildResultForPermitSite(List<Site> campsitesForPermitSite)
+  //  {
+    //     // need to fix
+    //     bool anyAvailability = false;
+    //     HashSet<string> combinedDatesForZones = new HashSet<string>();
 
-        PermitZonesAvailabilityResult permitZonesAvailabilityResult = new PermitZonesAvailabilityResult
-        {
-            PermitId = campsitesForPermitSite.First().PermitSite,
-            PermitName = campsitesForPermitSite.First().PermitSite,
-            Zones = string.Join(", ", campsitesForPermitSite.Select(c => c.Zone).Distinct())
-        };
+    //     PermitZonesAvailabilityResult permitZonesAvailabilityResult = new PermitZonesAvailabilityResult
+    //     {
+    //      //   PermitId = campsitesForPermitSite.First().PermitSite,
+    //        // PermitName = campsitesForPermitSite.First().PermitSite,
+    //       //  StartingAreas = string.Join(", ", campsitesForPermitSite.Select(c => c.Zone).Distinct())
+    //     };
 
-        var apiClient = new RecreationApiClient();
-        var siteName = campsitesForPermitSite.First().PermitSite;
-        var builder = new StringBuilder();
+    //     var apiClient = new RecreationApiClient();
+    //   //  var siteName = campsitesForPermitSite.First().PermitSite;
+    //     var builder = new StringBuilder();
 
-        builder.AppendLine($"*{siteName}*");
+    //  //   builder.AppendLine($"*{siteName}*");
 
-        foreach (var campsite in campsitesForPermitSite)
-        {
-            List<string> availableDatesForCampsite = await apiClient.GetPermitZoneAvailabilityAsync(campsite);
-            foreach (var date in availableDatesForCampsite)
-            {
-                combinedDatesForZones.Add(date);
-            }
+    //     foreach (var campsite in campsitesForPermitSite)
+    //     {
+    //         List<string> availableDatesForCampsite = await apiClient.GetPermitZoneAvailabilityAsync(permitarea campsite);
+    //         foreach (var date in availableDatesForCampsite)
+    //         {
+    //             combinedDatesForZones.Add(date);
+    //         }
 
-        }
+    //     }
 
-        // Sort dates
-        var sortedDates = combinedDatesForZones
-            .Select(date => DateTime.Parse(date))
-            .OrderBy(date => date)
-            .Select(date => date.ToString("M/d"))
-            .ToList();
+    //     // Sort dates
+    //     var sortedDates = combinedDatesForZones
+    //         .Select(date => DateTime.Parse(date))
+    //         .OrderBy(date => date)
+    //         .Select(date => date.ToString("M/d"))
+    //         .ToList();
 
-        foreach (var zone in permitZonesAvailabilityResult.Zones.Split(", "))
-        {
-            if (combinedDatesForZones.Count > 0)
-            {
-                builder.AppendLine($" - {zone}: {string.Join(", ", sortedDates)}");
-                anyAvailability = true;
-            }
+    //     foreach (var zone in permitZonesAvailabilityResult.StartingAreas.Split(", "))
+    //     {
+    //         if (combinedDatesForZones.Count > 0)
+    //         {
+    //             builder.AppendLine($" - {zone}: {string.Join(", ", sortedDates)}");
+    //             anyAvailability = true;
+    //         }
 
-        }
+    //     }
 
-        builder.AppendLine(); // spacing after each site
+    //     builder.AppendLine(); // spacing after each site
 
-        return anyAvailability ? builder.ToString() : string.Empty;
-    }
+    //     return anyAvailability ? builder.ToString() : string.Empty;
+  //  }
 
 
 }
