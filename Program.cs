@@ -32,7 +32,14 @@ class Program
 
         Console.WriteLine($"Running in {env} mode");
 
-        var slackBotService = new SlackBotService(slackClient, channelId);
+        string mongoUri = Utils.ReadSecret("MONGO_URI")!;
+        var mongoService = new MongoService(
+            mongoUri,
+            "campsite-tracking-db",
+            "user-campsite-tracking"
+        );
+
+        var slackBotService = new SlackBotService(slackClient, channelId, mongoService);
 
         app.MapPost("/slack/events", async (HttpRequest request) =>
         {

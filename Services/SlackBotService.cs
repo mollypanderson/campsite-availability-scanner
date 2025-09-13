@@ -17,12 +17,14 @@ namespace CampsiteAvailabilityScanner.Services
     public class SlackBotService
     {
         private readonly ISlackClient slackClient;
+        private MongoService mongoService;
         private readonly string channelId; 
         private readonly ConcurrentDictionary<string, ConversationState> userStates;
 
-        public SlackBotService(ISlackClient slackClient, string channelId)
+        public SlackBotService(ISlackClient slackClient, string channelId, MongoService mongoService)
         {
             this.slackClient = slackClient;
+            this.mongoService = mongoService;
             this.channelId = channelId;
             userStates = new ConcurrentDictionary<string, ConversationState>();
         }
@@ -35,7 +37,7 @@ namespace CampsiteAvailabilityScanner.Services
             {
                 if (body.Trim().Equals("LIST", StringComparison.OrdinalIgnoreCase))
                 {
-                    await PrintTrackedSitesAsync(channelId);
+                    await PrintTrackedSitesAsync(state.UserId, channelId);
                 }
                 else if (body.Trim().StartsWith("ADD ", StringComparison.OrdinalIgnoreCase))
                 {
@@ -61,6 +63,7 @@ namespace CampsiteAvailabilityScanner.Services
             else if (state.LastQuestionAsked == "asked_about_dates")
             {
                 await ProcessDateResponseAsync(channelId, body, state);
+                await AddPermitZonesToTrackListAsync(state);
             }
             else
             {
@@ -257,54 +260,31 @@ namespace CampsiteAvailabilityScanner.Services
                 .ForEach(sa => sa.Sites
                     .ForEach(site => site.Dates = site.Dates.Union(selectedDates).ToList()));
 
-
-            await AddPermitZonesToTrackListAsync(state);
-            await slackClient.SendMessageToChannelAsync("tbd", channelId);
-            string message = $"✅ Tracking sites/zones {string.Join(", ", state.PermitArea.StartingAreas.SelectMany(sa => sa.Sites).Select(s => s.Name))}";
-            state.LastQuestionAsked = null; // reset state
+            string message = $"✅ Tracking sites/zones _{string.Join(", ", state.PermitArea.StartingAreas.SelectMany(sa => sa.Sites).Select(s => s.Name))}_";
+            await slackClient.SendMessageToChannelAsync(message, channelId);
         }
 
         private async Task AddPermitZonesToTrackListAsync(ConversationState state)
         {
-            string mongoUri = Utils.ReadSecret("MONGO_URI")!;
-            var mongoService = new MongoService(
-                mongoUri,
-                "campsite-tracking-db",
-                "user-campsite-tracking"
-            );
             await mongoService.UpsertOrMergePermitAreaAsync(state.UserId, state.PermitArea!);
             Console.WriteLine($"{state.PermitArea!.Name} added to Mongo for user {state.UserId}");
+            state.LastQuestionAsked = null; // reset state
         }
 
-        private async Task PrintTrackedSitesAsync(string channelId)
+        private async Task PrintTrackedSitesAsync(string userId, string channelId)
         {
-            //tbd redone after mongo
-            if (!File.Exists("trackList.json") || new FileInfo("trackList.json").Length == 0)
+            List<PermitArea> permitAreas = await mongoService.GetPermitAreasForUserAsync(userId);
+
+            if (permitAreas.Count() < 1)
             {
                 await slackClient.SendMessageToChannelAsync
                 (channelId, "You are not tracking any sites yet.");
                 return;
             }
 
-            // var lines = File.ReadAllLines("trackList.json");
-            // var sites = lines
-            //     .Select(line => JsonSerializer.Deserialize<Site>(line))
-            //     .Where(c => c != null)
-            //     .GroupBy(c => c!.PermitSite)
-            //     .Select(g => new
-            //     {
-            //         PermitSite = g.Key,
-            //         Zones = g.Select(c => c!.Zone).Distinct().ToArray()
-            //     })
-            //     .ToArray();
-
-            // string message = "You're tracking the following sites:\n\n" +
-            //     string.Join("\n", sites.Select(s =>
-            //         $"*{s.PermitSite}*:\n" +
-            //         string.Join("\n", s.Zones.Select(z => $" - {z}"))
-            //     ));
-
-            // await slackClient.SendMessageToChannelAsync(channelId, message);
+            string message = Utils.PrettyPrintPermitAreasForSlack(permitAreas);
+            Console.WriteLine(message);
+            await slackClient.SendMessageToChannelAsync(channelId, message);
         }
 
         private async Task ShareInstructionsAsync(string channelId, ConversationState state)

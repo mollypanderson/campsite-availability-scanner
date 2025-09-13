@@ -1,3 +1,6 @@
+using System;
+using System.Text;
+
 public static class Utils
 {
     public static bool IsCommaDelimitedNumbers(string input)
@@ -81,6 +84,33 @@ public static class Utils
                 .ToList()!
         };
         return filteredPermitArea;
+    }
+
+    public static string PrettyPrintPermitAreasForSlack(List<PermitArea> permitAreas)
+    {
+        if (permitAreas == null || permitAreas.Count == 0)
+            return "You're not tracking any sites.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("You're tracking the following sites: ");
+
+        foreach (var area in permitAreas)
+        {
+            sb.AppendLine($"\n*{area.Name}*");
+
+            foreach (var startingArea in area.StartingAreas)
+            {
+                sb.AppendLine($"  - {startingArea.Name}:");
+
+                foreach (var site in startingArea.Sites)
+                {
+                    var dateStr = string.Join(", ", site.Dates.Select(d => d.ToString("M/d")));
+                    sb.AppendLine($"    - {site.Name} - _{dateStr}_");
+                }
+            }
+        }
+
+        return sb.ToString();
     }
 
 

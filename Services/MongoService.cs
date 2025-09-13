@@ -13,6 +13,23 @@ public class MongoService
         _userTrackingCollection = database.GetCollection<UserTrackingList>(collectionName);
     }
 
+        /// <summary>
+    /// Gets the list of PermitAreas for a given userId.
+    /// Returns an empty list if the user does not exist.
+    /// </summary>
+    public async Task<List<PermitArea>> GetPermitAreasForUserAsync(string userId)
+    {
+        var filter = Builders<UserTrackingList>.Filter.Eq(u => u.UserId, userId);
+        var userDoc = await _userTrackingCollection.Find(filter).FirstOrDefaultAsync();
+
+        if (userDoc == null)
+        {
+            return new List<PermitArea>();
+        }
+
+        return userDoc.PermitAreas ?? new List<PermitArea>();
+    }
+    
     /// <summary>
     /// Upserts or merges a PermitArea for a specific user.
     /// Existing PermitAreas are updated (sites/dates merged) without overwriting old content.
