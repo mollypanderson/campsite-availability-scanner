@@ -29,7 +29,7 @@ namespace CampsiteAvailabilityScanner.Services
 
         public async Task HandleIncomingMessageAsync(string userId, string channelId, string body)
         {
-            var state = userStates.GetOrAdd(userId, _ => new ConversationState());
+            var state = userStates.GetOrAdd(userId, _ => new ConversationState(userId));
 
             if (state.LastQuestionAsked == null)
             {
@@ -44,7 +44,7 @@ namespace CampsiteAvailabilityScanner.Services
                     await AskWhichStartingAreasAsync(channelId, state);
                 }
                 else
-                { 
+                {
                     await ShareInstructionsAsync(channelId, state);
                 }
             }
@@ -258,17 +258,22 @@ namespace CampsiteAvailabilityScanner.Services
                     .ForEach(site => site.Dates = site.Dates.Union(selectedDates).ToList()));
 
 
-            await AddPermitZonesToTrackListAsync(state, state.PermitArea!);
+            await AddPermitZonesToTrackListAsync(state);
             await slackClient.SendMessageToChannelAsync("tbd", channelId);
-          //update  (channelId, $"✅ Tracking dates: {string.Join(", ", selectedDatesMonthDateFormat)} for *{state.CurrentParkInformation.PermitSiteName}* zones _{string.Join(", ", state.SelectedStartingAreas)}_.");
-
+            string message = $"✅ Tracking sites/zones {string.Join(", ", state.PermitArea.StartingAreas.SelectMany(sa => sa.Sites).Select(s => s.Name))}";
             state.LastQuestionAsked = null; // reset state
         }
 
-        private async Task AddPermitZonesToTrackListAsync(ConversationState state, PermitArea permitArea)
+        private async Task AddPermitZonesToTrackListAsync(ConversationState state)
         {
-            // add to mongo
-         //   Console.WriteLine($"Added {state.SelectedStartingAreas.Length} zones to track list for user {state.UserId}");
+            string mongoUri = Utils.ReadSecret("MONGO_URI")!;
+            var mongoService = new MongoService(
+                mongoUri,
+                "campsite-tracking-db",
+                "user-campsite-tracking"
+            );
+            await mongoService.UpsertOrMergePermitAreaAsync(state.UserId, state.PermitArea!);
+            Console.WriteLine($"{state.PermitArea!.Name} added to Mongo for user {state.UserId}");
         }
 
         private async Task PrintTrackedSitesAsync(string channelId)

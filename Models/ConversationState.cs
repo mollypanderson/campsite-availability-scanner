@@ -11,5 +11,11 @@ namespace CampsiteAvailabilityScanner.Models
 
         public PermitArea? PermitArea;
 
+        public ConversationState() { }
+
+        public ConversationState(string userId)
+        {
+            UserId = userId;
+        }
     }
 }
