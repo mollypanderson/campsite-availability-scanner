@@ -26,7 +26,7 @@ public class ScheduledTaskService : BackgroundService
         await scanForAvailabilityForUser(user);
         Console.WriteLine($"UserId: {user.UserId}, PermitAreas: {user.PermitAreas.Count}");
       }
-      await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
+      await Task.Delay(TimeSpan.FromMinutes(15), stoppingToken);
       return;
     }
   }
@@ -106,11 +106,9 @@ public class ScheduledTaskService : BackgroundService
 
       }
 
-      builder.AppendLine(); // spacing after each site
+      builder.AppendLine(); 
 
       return anyAvailability ? builder.ToString() : string.Empty;
    }
-
-
 }
 
