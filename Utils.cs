@@ -1,3 +1,6 @@
+using System;
+using System.Text;
+
 public static class Utils
 {
     public static bool IsCommaDelimitedNumbers(string input)
@@ -25,6 +28,92 @@ public static class Utils
 
         return message;
     }
+
+    public static string IncrementLabel(string label)
+    {
+        if (string.IsNullOrEmpty(label))
+            return "A";
+
+        // Convert to uppercase and to char array
+        char[] chars = label.ToUpper().ToCharArray();
+        int i = chars.Length - 1;
+
+        while (i >= 0)
+        {
+            if (chars[i] < 'Z')
+            {
+                chars[i]++;
+                return new string(chars);
+            }
+            else
+            {
+                chars[i] = 'A';
+                i--;
+            }
+        }
+
+        // If we carried past the first character, prepend 'A'
+        return "A" + new string(chars);
+    }
+
+    public static PermitArea FilterPermitAreaBySelectedSites(PermitArea original, List<Site> selectedSites)
+    {
+        // Build new PermitArea
+        var filteredPermitArea = new PermitArea
+        {
+            Name = original.Name,
+            Id = original.Id,
+            StartingAreas = original.StartingAreas
+                .Select(sa =>
+                {
+                    // Keep only sites that are in selectedSites
+                    var filteredSites = sa.Sites
+                        .Where(s => selectedSites.Contains(s))
+                        .ToList();
+
+                    // Only keep startingAreas with at least one selected site
+                    if (filteredSites.Count == 0) return null;
+
+                    return new StartingArea
+                    {
+                        Name = sa.Name,
+                        Sites = filteredSites
+                    };
+                })
+                .Where(sa => sa != null) // remove nulls
+                .ToList()!
+        };
+        return filteredPermitArea;
+    }
+
+    public static string PrettyPrintPermitAreasForSlack(List<PermitArea> permitAreas)
+    {
+        if (permitAreas == null || permitAreas.Count == 0)
+            return "You're not tracking any sites.";
+
+        var sb = new StringBuilder();
+        sb.AppendLine("You're tracking the following sites: ");
+
+        foreach (var area in permitAreas)
+        {
+            sb.AppendLine($"\n*{area.Name}*");
+
+            foreach (var startingArea in area.StartingAreas)
+            {
+                sb.AppendLine($"  - {startingArea.Name}:");
+
+                foreach (var site in startingArea.Sites)
+                {
+                    var dateStr = string.Join(", ", site.Dates.Select(d => d.ToString("M/d")));
+                    sb.AppendLine($"    - {site.Name} - _{dateStr}_");
+                }
+            }
+        }
+
+        return sb.ToString();
+    }
+
+
 
     public static string ReadSecret(string name)
     {

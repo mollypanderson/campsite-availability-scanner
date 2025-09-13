@@ -10,6 +10,8 @@ class Program
 
     static void Main(string[] args)
     {
+        DotNetEnv.Env.Load(); // Load from project root
+
         var builder = WebApplication.CreateBuilder(args);
 
         var port = Utils.ReadSecret("PORT") ?? "8080";
@@ -17,8 +19,6 @@ class Program
         builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
         builder.Services.AddHostedService<ScheduledTaskService>();
-
-        DotNetEnv.Env.Load(); // Load from project root
 
         var app = builder.Build();
 
@@ -32,7 +32,14 @@ class Program
 
         Console.WriteLine($"Running in {env} mode");
 
-        var slackBotService = new SlackBotService(slackClient, channelId);
+        string mongoUri = Utils.ReadSecret("MONGO_URI")!;
+        var mongoService = new MongoService(
+            mongoUri,
+            "campsite-tracking-db",
+            "user-campsite-tracking"
+        );
+
+        var slackBotService = new SlackBotService(slackClient, channelId, mongoService);
 
         app.MapPost("/slack/events", async (HttpRequest request) =>
         {
